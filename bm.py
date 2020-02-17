@@ -38,7 +38,7 @@ class bufferManager:
 			self.buffer[i].frameNumber = i
 	# ------------------------------------------------------------
 
-	def pin(self,pageNumber, new = False): 
+	def pin(self, pageNumber, new = False):
 		# given a page number, pin the page in the buffer
 		# if new = True, the page is new so no need to read it from disk
 		# if new = False, the page already exists. So read it from disk if it is not already in the pool. 
@@ -62,24 +62,31 @@ class bufferManager:
 		return self.buffer[my_frame]
 
 	# ------------------------------------------------------------
-	def unpin(self,pageNumber, dirty):
-		if not self.buffer[pageNumber].pinCount == 0 and not self.buffer[pageNumber].referenced:
-			self.buffer[pageNumber] -= 1
-		elif self.buffer[pageNumber].pinCount == 0 and not self.buffer[pageNumber].referenced:
-			if dirty:
-				self.dm.writePageToDisk()
-		else:  # We should never be able to logically reach this, because unpin shouldn't be used on a referenced page.
-			print("Error - attempted to unpin referenced page!")
+	def unpin(self, pageNumber, dirty):
+		print(type(pageNumber))
+		self.printBufferContent()
+		for frame in self.buffer:
+			if frame.pinCount > 0 and not frame.referenced == 1:
+				frame.pinCount = frame.pinCount - 1
+				if frame.pinCount == 0 and dirty:
+					self.dm.writePageToDisk(frame.currentPage)
+			elif frame.pinCount == 0 and not frame.referenced == 1:
+				if dirty:
+					self.dm.writePageToDisk(frame.currentPage)
+					dirty = False
+			elif frame.referenced == 1:  # It should be logically impossible to reach this state
+				print("Invalid operation - attempted to unpin a page which was referenced")
 
-	def flushPage(self,pageNumber): 
+
+	def flushPage(self, pageNumber):
 		# Ignore this function, it is not needed for this homework.
 		# flushPage forces a page in the buffer pool to be written to disk
 		for i in range(len(self.buffer)):
 			if self.buffer[i].currentPage.pageNo == pageNumber:
-				self.dm.writePageToDisk(self.buffer[i].currentPage) # flush writes a page to disk 
+				self.dm.writePageToDisk(self.buffer[i].currentPage) # flush writes a page to disk
 				self.buffer[i].dirtyBit = False
 
-	def printBufferContent(self): # helper function to display buffer content on the screen (helpful for debugging)
+	def printBufferContent(self):  # helper function to display buffer content on the screen (helpful for debugging)
 		print("---------------------------------------------------")
 		for i in range(len(self.buffer)):
 			print("frame#={} pinCount={} dirtyBit={} referenced={} pageNo={} pageContent={} ".format(self.buffer[i].frameNumber, self.buffer[i].pinCount, self.buffer[i].dirtyBit, self.buffer[i].referenced,  self.buffer[i].currentPage.pageNo, self.buffer[i].currentPage.content))	
