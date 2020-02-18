@@ -6,77 +6,86 @@ class BufferPoolFullError(Exception):
 	#exception used in the Clock class
 	def __init__(self, message):
 		self.message = message
+
 class clock:
 	def __init__(self):
 		# do the required initializations
 		self.location = 0
 
-	def pickVictim(self,buffer):
-		try:
-			for i in range(2*(len(buffer))):
-				if buffer[self.location].pinCount == 0 and buffer[self.location].referenced == 0:
-					return self.location		# We are selecting self.location as our victim
-				else:
-					buffer[self.location].referenced = 0
-					self.location += 1
-					if self.location == len(buffer):
-						self.location = 0
+	def pickVictim(self, buffer):
+		for i in range(2 * (len(buffer))):
+			if buffer[self.location].pinCount == 0 and buffer[self.location].referenced == 0:
+				return self.location  # We are selecting self.location as our victim
+			else:
+				buffer[self.location].referenced = 0
+				self.location += 1
+				if self.location == len(buffer):
+					self.location = 0
+		raise BufferPoolFullError("Buffer Pool Full")
 
-		except BufferPoolFullError as error:
-			print(error.message)
 
 # ==================================================================================================
 		
 class bufferManager:
 	
-	def __init__(self,size):
+	def __init__(self, size):
 		self.buffer = []
 		self.clk = clock()
 		self.dm = diskManager()
 		for i in range(size):
 			self.buffer.append(frame()) # creating buffer frames (i.e., allocating memory)
 			self.buffer[i].frameNumber = i
+
 	# ------------------------------------------------------------
 
-	def pin(self, pageNumber, new = False):
+	def pin(self, pageNumber, new=False):
 		# given a page number, pin the page in the buffer
 		# if new = True, the page is new so no need to read it from disk
-		# if new = False, the page already exists. So read it from disk if it is not already in the pool. 
-		my_frame = self.clk.pickVictim(self.buffer)  # returns an int
-		# print(type(myFrame))
-		# print("Frame picked", victim)  # For Debugging
-		if self.buffer[my_frame].currentPage.pageNo == pageNumber:
-			self.buffer[my_frame].pinCount += 1
-			return self.buffer[my_frame]
-		if self.buffer[my_frame].dirtyBit:
-			self.dm.writePageToDisk(self.buffer[my_frame].currentPage)
+		# if new = False, the page already exists. So read it from disk if it is not already in the pool.
+		myFrame = self.clk.pickVictim(self.buffer)  # returns an int
+		# print (type(myFrame))
+		# print ("frame picked",victim) ##for debugging
+		if self.buffer[myFrame].currentPage.pageNo == pageNumber:
+			self.buffer[myFrame].pinCount += 1
+			self.buffer[myFrame].referenced = 1
+			return self.buffer[myFrame].currentPage
+		if self.buffer[myFrame].dirtyBit == True:
+			self.dm.writePageToDisk(self.buffer[myFrame].currentPage)
 		# if page is not new, read page pageNo from disk into frame
-		if not new:
-			self.buffer[my_frame].currentPage.pageNo = self.dm.readPageFromDisk(self.buffer[my_frame].currentPage.pageNo)
-			self.buffer[my_frame].currentPage.content = self.dm.readPageFromDisk(self.buffer[my_frame].currentPage.content)
+		if new == False:
+			self.buffer[myFrame].currentPage.pageNo = self.dm.readPageFromDisk(pageNumber).pageNo
+			self.buffer[myFrame].currentPage.content = self.dm.readPageFromDisk(pageNumber).content
 		else:
-			# if page is new, then:
-			self.buffer[my_frame].currentPage.pageNo = pageNumber
-		self.buffer[my_frame].pinCount += 1
-		self.buffer[my_frame].dirtyBit = False
-		return self.buffer[my_frame]
+			# page is new
+			self.buffer[myFrame].currentPage.pageNo = pageNumber
+		self.buffer[myFrame].pinCount += 1
+		self.buffer[myFrame].referenced = 1
+		self.buffer[myFrame].dirtyBit = False
+		return self.buffer[myFrame].currentPage
 
 	# ------------------------------------------------------------
+
 	def unpin(self, pageNumber, dirty):
-		print(type(pageNumber))
+		'''
 		self.printBufferContent()
 		for frame in self.buffer:
 			if frame.pinCount > 0 and not frame.referenced == 1:
 				frame.pinCount = frame.pinCount - 1
-				if frame.pinCount == 0 and dirty:
+				if dirty:
 					self.dm.writePageToDisk(frame.currentPage)
 			elif frame.pinCount == 0 and not frame.referenced == 1:
 				if dirty:
 					self.dm.writePageToDisk(frame.currentPage)
 					dirty = False
-			elif frame.referenced == 1:  # It should be logically impossible to reach this state
-				print("Invalid operation - attempted to unpin a page which was referenced")
-
+		'''			# loop through buffer pool, find page which matches pageNumber, decrement pin, if dirty, dirty = True
+		self.printBufferContent()
+		for frame in self.buffer:
+			if frame.currentPage.pageNo == pageNumber:
+				if frame.pinCount > 0:
+					frame.pinCount = frame.pinCount -1
+					if dirty:
+						frame.dirtyBit = True
+	# ------------------------------------------------------------
 
 	def flushPage(self, pageNumber):
 		# Ignore this function, it is not needed for this homework.
